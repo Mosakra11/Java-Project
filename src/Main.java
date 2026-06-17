@@ -148,11 +148,24 @@ public class Main {
         System.out.println("\nStarting simulation in 3 seconds...");
         Thread.sleep(3000);
 
+        // Parse --inject-failures flag
+        boolean injectFailures = false;
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("--inject-failures")) {
+                injectFailures = true;
+                System.out.println("Failure injection enabled: turbulence thread will throw exceptions at 3s, 6s, and 9s");
+                break;
+            }
+        }
+
+        // Capture simulation start time for failure injection timing
+        long simulationBootTime = System.currentTimeMillis();
+
         // Create and start threads
         Thread userInputThread = createInputThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
         userInputThread.start();
 
-        Runnable turbulenceTask = createTurbulenceThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
+        Runnable turbulenceTask = createTurbulenceTask(rollControl, pitchControl, yawControl, turbulenceEnabled, running, injectFailures, simulationBootTime);
         SupervisedRunner turbulenceSupervisor = new SupervisedRunner("turbulence", turbulenceTask, running::get);
         Thread turbulenceThread = new Thread(turbulenceSupervisor);
         turbulenceThread.start();
@@ -189,7 +202,20 @@ public class Main {
         ResourceMonitor resourceMonitor = new ResourceMonitor(1000, gui::setPerformanceLevel);
         gui.setResourceMonitor(resourceMonitor);
 
-        SupervisedRunner monitorSupervisor = new SupervisedRunner("resource monitor", resourceMonitor, running::get);
+        Runnable monitorTask = () -> {
+            while (running.get() && !Thread.currentThread().isInterrupted()) {
+                resourceMonitor.run();
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        };
+
+
+        SupervisedRunner monitorSupervisor = new SupervisedRunner("resource monitor", monitorTask, running::get);
         Thread resourceMonitorThread = new Thread(monitorSupervisor);
         resourceMonitorThread.start();
 
@@ -223,6 +249,9 @@ public class Main {
         try {
             System.out.println("Simulation active - check analytics display...");
             
+            long simulationStart = System.currentTimeMillis();
+            long autoStopTime = injectFailures ? 70000 : Long.MAX_VALUE; // 70 seconds for inject-failures test
+
             // Wait for quit command
             while (running.get()) {
                 // Update direction controls with physics
@@ -230,6 +259,12 @@ public class Main {
                 pitchControl.update();
                 yawControl.update();
                 
+                // Auto-stop simulation if inject-failures test duration exceeded
+                if (injectFailures && System.currentTimeMillis() - simulationStart > autoStopTime) {
+                    System.out.println("Auto-stopping simulation after failure injection test...");
+                    running.set(false);
+                }
+
                 // Small sleep to reduce CPU usage
                 Thread.sleep(50);
             }
@@ -321,11 +356,12 @@ public class Main {
     }
     
     /**
-     * Creates a thread that applies turbulence to the aircraft
+     * Creates a runnable task that applies turbulence to the aircraft
      */
-    private static Thread createTurbulenceThread(DirectionControl roll, DirectionControl pitch, DirectionControl yaw,
-                                         AtomicBoolean turbulenceEnabled, AtomicBoolean running) {
-        return new Thread(() -> {
+    private static Runnable createTurbulenceTask(DirectionControl roll, DirectionControl pitch, DirectionControl yaw,
+                                                 AtomicBoolean turbulenceEnabled, AtomicBoolean running,
+                                                 boolean injectFailures, long simulationBootTime) {
+        return () -> {
             Random random = new Random();
 
             while (running.get()) {
@@ -343,13 +379,25 @@ public class Main {
                         yaw.setCurrentValue(yaw.getCurrentValue() + yawJitter);
                     }
 
+                    // Inject failures at specific global timestamps if enabled
+                    if (injectFailures) {
+                        long elapsedMs = System.currentTimeMillis() - simulationBootTime;
+                        if (elapsedMs >= 3000 && elapsedMs < 3100) {
+                            throw new RuntimeException("Injected failure at 3 seconds");
+                        } else if (elapsedMs >= 6000 && elapsedMs < 6100) {
+                            throw new RuntimeException("Injected failure at 6 seconds");
+                        } else if (elapsedMs >= 9000 && elapsedMs < 9100) {
+                            throw new RuntimeException("Injected failure at 9 seconds");
+                        }
+                    }
+
                     Thread.sleep(200);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             }
-        });
+        };
     }
 
     /**
