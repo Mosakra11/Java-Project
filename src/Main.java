@@ -150,10 +150,13 @@ public class Main {
 
         // Create and start threads
         Thread userInputThread = createInputThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
-        Thread turbulenceThread = createTurbulenceThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
-
         userInputThread.start();
+
+        Runnable turbulenceTask = createTurbulenceThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
+        SupervisedRunner turbulenceSupervisor = new SupervisedRunner("turbulence", turbulenceTask, running::get);
+        Thread turbulenceThread = new Thread(turbulenceSupervisor);
         turbulenceThread.start();
+
 
         String scriptFilename = "default_maneuvers.csv";
         for (int i = 0; i < args.length - 1; i++) {
@@ -171,7 +174,9 @@ public class Main {
             System.exit(1);
         }
 
-        Thread demoThread = createAutomatedDemoThread(rollControl, pitchControl, yawControl, script);
+        Runnable demoTask = createAutomatedDemoThread(rollControl, pitchControl, yawControl, script);
+        SupervisedRunner demoSupervisor = new SupervisedRunner("demo", demoTask, running::get);
+        Thread demoThread = new Thread(demoSupervisor);
         demoThread.start();
 
         // Create and start the Swing GUI. The GUI reads orientation directly
@@ -183,7 +188,10 @@ public class Main {
         // tells the GUI to throttle its frame rate when the host is under load.
         ResourceMonitor resourceMonitor = new ResourceMonitor(1000, gui::setPerformanceLevel);
         gui.setResourceMonitor(resourceMonitor);
-        Thread resourceMonitorThread = resourceMonitor.start();
+
+        SupervisedRunner monitorSupervisor = new SupervisedRunner("resource monitor", resourceMonitor, running::get);
+        Thread resourceMonitorThread = new Thread(monitorSupervisor);
+        resourceMonitorThread.start();
 
         gui.show();
         
