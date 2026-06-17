@@ -1,77 +1,23 @@
-# ManeuverScript Class
+## Session 1 – 2026-06-17 15:15
+Task: Task 1 (Maneuver script loaded from a file)
+Tool: GitHub Copilot Chat
+Prompt (verbatim): Create a Java class ManeuverScript that loads maneuvers from a CSV file. Validate 4 fields, skip header/blanks/comments, and check ranges for roll, pitch, yaw.
+Suggestion summary: Copilot generated the `ManeuverScript` class with a `loadFromCSV` method, a `BufferedReader`, and the requested range checks.
+Decision: Accepted with modifications
+Why: Copilot included an orphaned `try` block without a catch/finally, an extra semicolon, and a typo in the yaw error message (9180 instead of 180). I had to manually fix these syntax errors so the code would compile.
 
-## Overview
-The `ManeuverScript` class reads CSV files containing aircraft maneuver data and stores them as a `List<Maneuver>`.
+## Session 2 – 2026-06-17 15:45
+Task: Task 1 (Maneuver script loaded from a file)
+Tool: GitHub Copilot Chat
+Prompt (verbatim): Refactor this method so the hardcoded maneuvers are replaced with a loop over a ManeuverScript object. Keep the existing behavior identical.
+Suggestion summary: Copilot suggested a `while(true)` loop to iterate through the maneuvers. It also added a fallback file path searching in `~/.aircraft_sim/` and generated a large `describeManeuver()` helper method to print what the plane was doing to standard output.
+Decision: Rejected and heavily modified
+Why: The project brief strictly requires the file path to be configurable via a `--script` CLI flag, and if missing, it must default to the current working directory. Copilot also put the file loading inside the thread and caught the exception silently, whereas the brief requires the simulation to exit with a non-zero code if the file is missing. Finally, I removed the `describeManeuver()` method because it added unnecessary bloat.
 
-## CSV Format
-```
-seconds,roll,pitch,yaw
-8,0,0,0
-12,2,0,2
-```
-
-## Features
-- **Skip header** - Automatically skips the header line (seconds,roll,pitch,yaw)
-- **Ignore blank lines** - Blank lines are skipped during parsing
-- **Ignore comments** - Lines starting with `#` are ignored
-- **Validate 4 fields** - Each data line must have exactly 4 comma-separated values
-- **Store as List<Maneuver>** - Data is parsed and stored as a list of Maneuver objects
-
-## Constructor
-```java
-public ManeuverScript(String filename) throws IOException
-```
-Creates a new ManeuverScript instance and loads maneuvers from the specified CSV file.
-
-## Methods
-
-### getManeuvers()
-```java
-public List<Maneuver> getManeuvers()
-```
-Returns a copy of the list of loaded maneuvers.
-
-### size()
-```java
-public int size()
-```
-Returns the number of loaded maneuvers.
-
-### getManeuver(int index)
-```java
-public Maneuver getManeuver(int index) throws IndexOutOfBoundsException
-```
-Gets a specific maneuver by index.
-
-## Usage Example
-```java
-try {
-    ManeuverScript script = new ManeuverScript("maneuvers.csv");
-    List<Maneuver> maneuvers = script.getManeuvers();
-    
-    for (Maneuver m : maneuvers) {
-        System.out.println("Seconds: " + m.getSeconds() + 
-                         ", Roll: " + m.getRoll() + 
-                         ", Pitch: " + m.getPitch() + 
-                         ", Yaw: " + m.getYaw());
-    }
-} catch (IOException e) {
-    System.err.println("Error reading file: " + e.getMessage());
-} catch (IllegalArgumentException e) {
-    System.err.println("Invalid CSV format: " + e.getMessage());
-}
-```
-
-## Error Handling
-The class provides detailed error messages including:
-- Line numbers where errors occurred
-- Expected vs. actual field counts
-- Number format errors with context
-
-## Implementation Details
-The class uses `BufferedReader` to efficiently read the CSV file line by line:
-- First non-blank, non-comment line is treated as the header
-- Remaining lines are parsed as maneuver data
-- Each field is trimmed of whitespace before parsing
-- Integers are parsed for the seconds field
-- Doubles are parsed for roll, pitch, and yaw fields
+## Session 3 – 2026-06-17 16:00
+Task: Refactor again - move file loading outside thread, remove describeManeuver entirely, ensure long sleep timer
+Tool: GitHub Copilot Chat
+Prompt (verbatim): Refactor this again. Do not put the file loading inside the thread, remove the describeManeuver method entirely, and ensure the sleep timer uses a long
+Suggestion summary: Already implemented correctly - file loading was already in `main()`, ManeuverScript passed as parameter to thread method, and sleep timer already used explicit `long` cast (`maneuver.getSeconds() * 1000L`). Only needed to remove the unused `describeManeuver()` method.
+Decision: Implemented as specified
+Why: The refactoring ensures clean separation of concerns - file I/O happens at startup, thread method is simplified, and explicit long type avoids potential overflow issues.

@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.jar.Manifest;
 
 public class Main {
     /** Writer for logging output to file */
@@ -150,11 +151,28 @@ public class Main {
         // Create and start threads
         Thread userInputThread = createInputThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
         Thread turbulenceThread = createTurbulenceThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
-        Thread automatedDemoThread = createAutomatedDemoThread(rollControl, pitchControl, yawControl);
 
         userInputThread.start();
         turbulenceThread.start();
-        automatedDemoThread.start();
+
+        String scriptFilename = "default_maneuvers.csv";
+        for (int i = 0; i < args.length - 1; i++) {
+            if (args[i].equals("--script")) {
+                scriptFilename = args[i + 1];
+                break;
+            }
+        }
+
+        ManeuverScript script = null;
+        try {
+            script = new ManeuverScript(scriptFilename);
+        }catch (Exception e) {
+            System.err.println("Error reading script: " + e.getMessage());
+            System.exit(1);
+        }
+
+        Thread demoThread = createAutomatedDemoThread(rollControl, pitchControl, yawControl, script);
+        demoThread.start();
 
         // Create and start the Swing GUI. The GUI reads orientation directly
         // from the DirectionControl instances passed in - no JSON intermediary.
@@ -210,7 +228,7 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            // Stop the resource monitor first - it's a daemon thread but we
+            // Stop the resource monitor first - it's a daemon thread, but we
             // ask it to exit cleanly before tearing down everything else.
             resourceMonitor.stop();
             resourceMonitorThread.interrupt();
@@ -234,7 +252,7 @@ public class Main {
             // Interrupt other threads
             userInputThread.interrupt();
             turbulenceThread.interrupt();
-            automatedDemoThread.interrupt();
+            demoThread.interrupt();
 
             System.out.println("\nSimulation terminated. Thank you for flying with us!");
         }
@@ -328,85 +346,33 @@ public class Main {
 
     /**
      * Creates a thread that automatically demonstrates various flight maneuvers
-     * without requiring user input - using ultra-gentle transitions
+     * without requiring user input - maneuvers are loaded from a CSV file via ManeuverScript
      */
-    private static Thread createAutomatedDemoThread(DirectionControl roll, DirectionControl pitch, DirectionControl yaw) {
+    private static Thread createAutomatedDemoThread(DirectionControl roll, DirectionControl pitch, DirectionControl yaw, ManeuverScript script) {
         return new Thread(() -> {
             try {
                 // Allow time for the simulation to start
                 Thread.sleep(3000); // Longer initial delay
                 System.out.println("\nStarting automated flight demonstration with ultra-gentle maneuvers...");
-                
-                // Start with extended stable level flight
-                roll.setTargetValue(0);
-                pitch.setTargetValue(0);
-                yaw.setTargetValue(0);
-                Thread.sleep(8000);  // 8 seconds of stable flight
-                
+
+                // Loop through maneuvers infinitely
                 while (true) {
-                    // Stage 1: Level flight
-                    System.out.println("\nDemonstrating: Level flight");
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(0);
-                    yaw.setTargetValue(0);
-                    Thread.sleep(8000); // Long stable period
-                    
-                    // Stage 2: Ultra-gentle right turn (minimal values)
-                    System.out.println("\nDemonstrating: Ultra-gentle right turn");
-                    roll.setTargetValue(2);  // Extremely gentle bank angle (was 5)
-                    pitch.setTargetValue(0); // No pitch
-                    yaw.setTargetValue(2);   // Minimal yaw (was 5)
-                    Thread.sleep(12000);     // Extended hold for observation
-                    
-                    // Back to level
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(0);
-                    yaw.setTargetValue(0);
-                    Thread.sleep(8000);
-                    
-                    // Stage 3: Ultra-gentle left turn
-                    System.out.println("\nDemonstrating: Ultra-gentle left turn");
-                    roll.setTargetValue(-2); // Extremely gentle bank angle (was -5)
-                    pitch.setTargetValue(0); // No pitch
-                    yaw.setTargetValue(-2);  // Minimal yaw (was -5)
-                    Thread.sleep(12000);     // Extended hold for observation
-                    
-                    // Back to level
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(0);
-                    yaw.setTargetValue(0);
-                    Thread.sleep(8000);
-                    
-                    // Stage 4: Very gentle climb
-                    System.out.println("\nDemonstrating: Very gentle climb");
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(-5); // Minimal pitch up
-                    yaw.setTargetValue(0);
-                    Thread.sleep(10000);      // Hold for observation
-                    
-                    // Back to level
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(0);
-                    yaw.setTargetValue(0);
-                    Thread.sleep(8000);
-                    
-                    // Stage 5: Very gentle descent
-                    System.out.println("\nDemonstrating: Very gentle descent");
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(3);  // Minimal pitch down
-                    yaw.setTargetValue(0);
-                    Thread.sleep(10000);      // Hold for observation
-                    
-                    // Return to level for a long time
-                    System.out.println("\nReturning to level flight");
-                    roll.setTargetValue(0);
-                    pitch.setTargetValue(0);
-                    yaw.setTargetValue(0);
-                    Thread.sleep(10000);      // Long stable period
-                } 
+                    for (int i = 0; i < script.size(); i++) {
+                        Maneuver maneuver = script.getManeuver(i);
+
+                        // Apply maneuver
+                        roll.setTargetValue(maneuver.getRoll());
+                        pitch.setTargetValue(maneuver.getPitch());
+                        yaw.setTargetValue(maneuver.getYaw());
+
+                        // Hold for specified duration (convert seconds to milliseconds)
+                        Thread.sleep(maneuver.getSeconds() * 1000L);
+                    }
+                }
             } catch (InterruptedException e) {
                 System.out.println("Demo thread interrupted.");
             }
         });
     }
+
 }
