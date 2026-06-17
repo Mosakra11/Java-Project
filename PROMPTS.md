@@ -46,7 +46,7 @@ Suggestion summary:
 Decision:
 Why:
 
-## Session 7 – 2026-06-17 16:22
+## Session 7 – 2026-06-17 16:42
 Task: Task 3 (Self-healing worker threads - Core Loop)
 Tool: GitHub Copilot Chat
 Prompt (verbatim): Write a Java class named SupervisedRunner that implements Runnable. Its constructor should accept a String workerName, a Runnable task, and a BooleanSupplier isRunning. The run() method must contain a while(isRunning.getAsBoolean()) loop. Inside this loop, wrap task.run() in a try-catch block that catches Exception and RuntimeException. Do not implement the backoff or restart budget yet, just print the exception to standard error.
@@ -54,7 +54,7 @@ Suggestion summary: Copilot correctly placed the try-catch block inside the whil
 Decision: Accepted with modifications
 Why: I manually deleted the unreachable `RuntimeException` catch block and consolidated the logging into the single `Exception` catch block so the code would compile.
 
-## Session 8 – 2026-06-17 16:35
+## Session 8 – 2026-06-17 16:58
 Task: Task 3 (Self-healing worker threads - Fixing Backoff Logic)
 Tool: GitHub Copilot Chat
 Prompt (verbatim): Your previous code has two issues. First, you included the catch (RuntimeException e) block again, which causes a compile error because it's already caught by Exception. Second, your if/else logic has a bug: if the task runs successfully for 10 seconds and then throws an exception, you reset the backoff but completely skip logging the error and sleeping. Refactor the catch block so it only uses catch (Exception e). Inside that block, ensure it *always* logs the exception and *always* sleeps, but resets the backoff timer first if elapsedMs >= SUCCESS_DURATION_MS.
@@ -62,7 +62,7 @@ Suggestion summary: Copilot removed the duplicate catch block and fixed the exec
 Decision: Accepted as written
 Why: The revised code compiles perfectly and strictly follows the project requirements for unconditional error logging and sleeping during a crash.
 
-## Session 9 – 2026-06-17 16:40
+## Session 9 – 2026-06-17 17:02
 Task: Task 3 (Self-healing worker threads - Restart Budget)
 Tool: GitHub Copilot Chat
 Prompt (verbatim): Update the SupervisedRunner class to enforce a restart budget. A worker must be permanently abandoned if it accumulates 5 restarts within a rolling 30-second window. Use a LinkedList<Long> to store the system timestamps of each failure. In the catch block, add the current timestamp, remove any timestamps older than 30,000 milliseconds, and if the list size reaches 5, log '[workerName] exceeded restart budget; will not be restarted' and break out of the while loop.
