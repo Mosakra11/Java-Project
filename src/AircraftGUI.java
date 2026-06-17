@@ -281,10 +281,10 @@ public class AircraftGUI {
                 double cpu = resourceMonitor.getSystemCpuLoad();
                 double proc = resourceMonitor.getProcessCpuLoad();
                 double heap = resourceMonitor.getHeapUsedFraction();
-                System.out.printf("[resources] sysCPU=%5.1f%%  procCPU=%5.1f%%  heap=%5.1f%%  level=%s  fps~%d%n",
-                        cpu * 100, proc * 100, heap * 100,
-                        resourceMonitor.getCurrentLevel(),
-                        timer != null ? 1000 / Math.max(1, timer.getDelay()) : 0);
+                // System.out.printf("[resources] sysCPU=%5.1f%%  procCPU=%5.1f%%  heap=%5.1f%%  level=%s  fps~%d%n",
+                        //cpu * 100, proc * 100, heap * 100,
+                        //resourceMonitor.getCurrentLevel(),
+                        //timer != null ? 1000 / Math.max(1, timer.getDelay()) : 0);
             }
 
             // Process day/night cycle

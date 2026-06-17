@@ -158,8 +158,13 @@ public class Main {
             }
         }
 
+        if (!injectFailures) {
+            System.out.println("Running without failure injection (use --inject-failures flag to enable)");
+        }
+
         // Capture simulation start time for failure injection timing
         long simulationBootTime = System.currentTimeMillis();
+        System.out.println("Simulation boot time: " + simulationBootTime);
 
         // Create and start threads
         Thread userInputThread = createInputThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
@@ -365,36 +370,40 @@ public class Main {
             Random random = new Random();
 
             while (running.get()) {
+                // Only apply turbulence if enabled
+                if (turbulenceEnabled.get()) {
+                    // Create random jitter values to simulate turbulence
+                    double rollJitter = (random.nextDouble() - 0.5) * 2.0;
+                    double pitchJitter = (random.nextDouble() - 0.5) * 1.5;
+                    double yawJitter = (random.nextDouble() - 0.5) * 1.0;
+
+                    // Apply jitter
+                    roll.setCurrentValue(roll.getCurrentValue() + rollJitter);
+                    pitch.setCurrentValue(pitch.getCurrentValue() + pitchJitter);
+                    yaw.setCurrentValue(yaw.getCurrentValue() + yawJitter);
+                }
+
+                // Inject failures at specific global timestamps if enabled
+                if (injectFailures) {
+                    long elapsedMs = System.currentTimeMillis() - simulationBootTime;
+                    if (elapsedMs >= 3000 && elapsedMs < 3100) {
+                        System.err.println("[DEBUG] Triggering failure at 3s mark (elapsed: " + elapsedMs + "ms)");
+                        throw new RuntimeException("Injected failure at 3 seconds");
+                    } else if (elapsedMs >= 6000 && elapsedMs < 6100) {
+                        System.err.println("[DEBUG] Triggering failure at 6s mark (elapsed: " + elapsedMs + "ms)");
+                        throw new RuntimeException("Injected failure at 6 seconds");
+                    } else if (elapsedMs >= 9000 && elapsedMs < 9100) {
+                        System.err.println("[DEBUG] Triggering failure at 9s mark (elapsed: " + elapsedMs + "ms)");
+                        throw new RuntimeException("Injected failure at 9 seconds");
+                    }
+                }
+
+                // Sleep at the very end of the loop
                 try {
-                    // Only apply turbulence if enabled
-                    if (turbulenceEnabled.get()) {
-                        // Create random jitter values to simulate turbulence
-                        double rollJitter = (random.nextDouble() - 0.5) * 2.0;
-                        double pitchJitter = (random.nextDouble() - 0.5) * 1.5;
-                        double yawJitter = (random.nextDouble() - 0.5) * 1.0;
-
-                        // Apply jitter
-                        roll.setCurrentValue(roll.getCurrentValue() + rollJitter);
-                        pitch.setCurrentValue(pitch.getCurrentValue() + pitchJitter);
-                        yaw.setCurrentValue(yaw.getCurrentValue() + yawJitter);
-                    }
-
-                    // Inject failures at specific global timestamps if enabled
-                    if (injectFailures) {
-                        long elapsedMs = System.currentTimeMillis() - simulationBootTime;
-                        if (elapsedMs >= 3000 && elapsedMs < 3100) {
-                            throw new RuntimeException("Injected failure at 3 seconds");
-                        } else if (elapsedMs >= 6000 && elapsedMs < 6100) {
-                            throw new RuntimeException("Injected failure at 6 seconds");
-                        } else if (elapsedMs >= 9000 && elapsedMs < 9100) {
-                            throw new RuntimeException("Injected failure at 9 seconds");
-                        }
-                    }
-
                     Thread.sleep(200);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
+                    throw new RuntimeException("Turbulence thread interrupted", e);
                 }
             }
         };

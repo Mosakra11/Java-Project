@@ -85,3 +85,19 @@ Prompt (verbatim): My inject-failures test is stuck in an infinite loop. Every t
 Suggestion summary: Copilot told me the timer was resetting because the variable was declared inside the runnable task. It told me to declare the start time out in `main()` instead and pass it in.
 Decision: Accepted as written
 Why: I was stuck in a completely annoying infinite loop. By grabbing the system time just once when the app boots, the failures actually happen at the correct times and the thread can finally recover instead of crashing forever.
+
+## Session 12 – 2026-06-17 18:30
+Task: Task 3 (Fixing Failure Injection Logic)
+Tool: GitHub Copilot Chat
+Prompt (verbatim): Refactor the createTurbulenceTask method. I need to fix the failure injection logic. 1. Wrap the entire task logic inside a while(running.get()) loop. 2. The Thread.sleep(200) must be inside the loop, at the very end. 3. Ensure the failure injection uses System.currentTimeMillis() - simulationBootTime so it triggers at global timestamps (3s, 6s, 9s). 4. If an exception is thrown, it must not be caught inside this method. Let the exception bubble up so the SupervisedRunner can handle the restart.
+Suggestion summary: Copilot suggested wrapping the task in a while loop so it keeps running instead of exiting immediately, and told me to let the exception bubble up so the supervisor can catch it.
+Decision: Accepted as written
+Why: My thread was finishing before it ever reached the 3-second mark, so the failure injection never triggered. Moving the loop inside keeps the thread running and lets it actually throw the exceptions so my supervisor can catch them.
+
+## Session 13 – 2026-06-17 18:35
+Task: Task 3 (Supervisor Pattern Implementation)
+Tool: GitHub Copilot Chat
+Prompt (verbatim): I need to refactor the run() method in SupervisedRunner. Here are the strict requirements:Keep the while(isRunning.getAsBoolean()) loop. Inside the loop, task.run() must be the very first thing called. Wrap task.run() in a single try-catch block that catches Exception. Inside the catch block:a) Print the error message using System.err.println. b) Sleep for the current backoff duration. c) If the task ran for more than 10 seconds before crashing, reset the backoff timer. Otherwise, double the backoff duration. do not add any other catch blocks. do not remove the restart logic.
+Suggestion summary: Copilot generated a robust run() method that effectively manages task restarts, implements exponential backoff, and ensures task failures are captured without terminating the thread.
+Decision: Accepted as written
+Why: This ensures that our "Self-Healing" system remains functional even during repeated failures, directly satisfying the project requirement for resilient worker threads.

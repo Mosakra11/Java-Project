@@ -41,13 +41,24 @@ public class SupervisedRunner implements Runnable {
                 task.run();
             } catch (Exception e) {
                 long elapsedMs = System.currentTimeMillis() - startTime;
-                if (elapsedMs >= SUCCESS_DURATION_MS) {
-                    // Task ran successfully for at least 10 seconds; reset backoff
-                    backoffMs = INITIAL_BACKOFF_MS;
-                }
-                // Always log the exception
+
+                // a) Print the error message
                 System.err.println("[" + workerName + "] Exception: " + e.getMessage());
-                e.printStackTrace(System.err);
+
+                // b) Sleep for the current backoff duration
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+
+                // c) Update backoff: reset if ran 10+ seconds, otherwise double
+                if (elapsedMs >= SUCCESS_DURATION_MS) {
+                    backoffMs = INITIAL_BACKOFF_MS;
+                } else {
+                    backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+                }
 
                 // Track restart in rolling window
                 long now = System.currentTimeMillis();
@@ -64,16 +75,6 @@ public class SupervisedRunner implements Runnable {
                     System.err.println("[" + workerName + "] exceeded restart budget; will not be restarted");
                     break;
                 }
-
-                // Always sleep
-                try {
-                    Thread.sleep(backoffMs);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                // Double backoff for next iteration
-                backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
             }
         }
     }
