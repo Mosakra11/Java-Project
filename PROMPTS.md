@@ -19,7 +19,7 @@ Task: Refactor again - move file loading outside thread, remove describeManeuver
 Tool: GitHub Copilot Chat
 Prompt (verbatim): Refactor this again. Do not put the file loading inside the thread, remove the describeManeuver method entirely, and ensure the sleep timer uses a long
 Suggestion summary: Already implemented correctly - file loading was already in `main()`, ManeuverScript passed as parameter to thread method, and sleep timer already used explicit `long` cast (`maneuver.getSeconds() * 1000L`). Only needed to remove the unused `describeManeuver()` method.
-Decision: Implemented as specified
+Decision: Accepted
 Why: The refactoring ensures clean separation of concerns - file I/O happens at startup, thread method is simplified, and explicit long type avoids potential overflow issues.
 
 ## Session 4 – 
