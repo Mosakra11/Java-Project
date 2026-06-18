@@ -22,13 +22,13 @@ Suggestion summary: Copilot mostly just cleaned up the code I had already starte
 Decision: Accepted
 Why: Loading the file inside `main()` just makes way more sense. If the CSV is broken, I want the simulation to fail immediately on startup, rather than waiting for the thread to launch and then crashing.
 
-## Session 4 –
-Task:
+## Session 4 – 2026-06-18 
+Task: Task 2 (Replace polling with Observer pattern for altitude data)
 Tool: GitHub Copilot Chat
-Prompt (verbatim):
-Suggestion summary:
-Decision:
-Why:
+Prompt (verbatim): Can you replace polling with the Observer pattern? Right now the code moves altitude data from the simulation to the GUI through polling.
+Suggestion summary: Copilot generated an AltitudeObserver interface and suggested adding observer management methods to AircraftGUI (addAltitudeObserver, removeAltitudeObserver, notifyAltitudeChanged). It recommended updating updateAircraft() to notify observers instead of just storing the altitude value, and registering the panel as an observer in createAndShowGUI().
+Decision: Accepted as written
+Why: The refactoring eliminates unnecessary polling every frame (60 FPS) and replaces it with event-driven updates that only notify observers when altitude actually changes. This reduces CPU usage, decouples the GUI from the panel via an interface, and makes it easy to add new altitude observers in the future. The observer pattern is thread-safe with synchronized operations on the observer list.
 
 ## Session 5 –
 Task:
