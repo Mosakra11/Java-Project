@@ -42,10 +42,26 @@ public class SupervisedRunner implements Runnable {
             } catch (Exception e) {
                 long elapsedMs = System.currentTimeMillis() - startTime;
 
-                // a) Print the error message
-                System.err.println("[" + workerName + "] Exception: " + e.getMessage());
+                // a) Print the error message and stack trace for clarity
+                System.err.println("[" + workerName + "] Exception caught: " + e.toString());
+                e.printStackTrace(System.err);
 
-                // b) Sleep for the current backoff duration
+                // Track restart in rolling window (timestamp of this failure)
+                long now = System.currentTimeMillis();
+                failureTimestamps.addLast(now);
+
+                // Remove timestamps older than the restart window
+                long cutoffTime = now - RESTART_WINDOW_MS;
+                while (!failureTimestamps.isEmpty() && failureTimestamps.getFirst() < cutoffTime) {
+                    failureTimestamps.removeFirst();
+                }
+
+                int recentFailures = failureTimestamps.size();
+
+                // Log the planned backoff and restart count
+                System.err.println("[" + workerName + "] will restart after " + backoffMs + " ms (" + recentFailures + " failures in last " + (RESTART_WINDOW_MS/1000) + "s)");
+
+                // Sleep for the current backoff duration
                 try {
                     Thread.sleep(backoffMs);
                 } catch (InterruptedException ie) {
@@ -53,21 +69,14 @@ public class SupervisedRunner implements Runnable {
                     break;
                 }
 
-                // c) Update backoff: reset if ran 10+ seconds, otherwise double
+                // c) Update backoff: reset if ran SUCCESS_DURATION_MS+ ms, otherwise double
                 if (elapsedMs >= SUCCESS_DURATION_MS) {
+                    System.err.println("[" + workerName + "] run was stable (" + elapsedMs + " ms); resetting backoff to " + INITIAL_BACKOFF_MS + " ms");
                     backoffMs = INITIAL_BACKOFF_MS;
                 } else {
-                    backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
-                }
-
-                // Track restart in rolling window
-                long now = System.currentTimeMillis();
-                failureTimestamps.addLast(now);
-
-                // Remove timestamps older than 30 seconds
-                long cutoffTime = now - RESTART_WINDOW_MS;
-                while (!failureTimestamps.isEmpty() && failureTimestamps.getFirst() < cutoffTime) {
-                    failureTimestamps.removeFirst();
+                    long newBackoff = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+                    System.err.println("[" + workerName + "] increasing backoff: " + backoffMs + " -> " + newBackoff + " ms");
+                    backoffMs = newBackoff;
                 }
 
                 // Check if restart budget exceeded
