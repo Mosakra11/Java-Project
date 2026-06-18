@@ -30,13 +30,13 @@ Suggestion summary: Copilot generated an AltitudeObserver interface and suggeste
 Decision: Accepted as written
 Why: The refactoring eliminates unnecessary polling every frame (60 FPS) and replaces it with event-driven updates that only notify observers when altitude actually changes. This reduces CPU usage, decouples the GUI from the panel via an interface, and makes it easy to add new altitude observers in the future. The observer pattern is thread-safe with synchronized operations on the observer list.
 
-## Session 5 –
-Task:
+## Session 5 – 2026-06-18
+Task: Task 3 (Replace polling with Observer pattern for orientation data - roll, pitch, yaw)
 Tool: GitHub Copilot Chat
-Prompt (verbatim):
-Suggestion summary:
-Decision:
-Why:
+Prompt (verbatim): Define a Java interface DirectionControlListener with a single method void onDirectionChanged(DirectionControl control). Give DirectionControl two methods addListener(DirectionControlListener) and removeListener(DirectionControlListener), backed by a thread-safe collection (CopyOnWriteArrayList). Every time update() changes the current value, iterate through the listener list and invoke the callback on each instance. Store the most recent value in a volatile double field per axis, and stop calling getCurrentValue() from inside the Swing timer. Modify AircraftGUI so that in its constructor it registers listeners with all three DirectionControl instances.
+Suggestion summary: Implementation created DirectionControlListener interface, added CopyOnWriteArrayList listeners to DirectionControl, modified update() to notify listeners via volatile field, implemented DirectionControlListener in AircraftGUI with onDirectionChanged() callback, and removed polling of getCurrentValue() from updateAircraft() and Swing Timer.
+Decision: Accepted as written
+Why: This completes the transition from polling to event-driven updates for all flight orientation data. CopyOnWriteArrayList is the optimal choice (many reads/few writes). The volatile field ensures EDT visibility without synchronization. Push-based notifications fire on the simulation thread while EDT safely reads cached values, respecting Swing's threading model. Eliminates redundant polling every 33ms when values change far less frequently.
 
 ## Session 6 –
 Task:
