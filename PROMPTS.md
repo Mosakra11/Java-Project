@@ -47,10 +47,10 @@ The Java Memory Model guarantees that the volatile write-in step 1 happens-befor
 ## Session 6 – 2026-06-18
 Task: Task 2 (Document thread-safe publication guarantee in code comments)
 Tool: GitHub Copilot Chat
-Prompt (verbatim):
-Suggestion summary:
-Decision:
-Why:
+Prompt (verbatim): Can you add a comment block (not too long) in code or in the prompts.md that explains in plain text English how the code guarantees safe publication of the value across threads?
+Suggestion summary: Added detailed code comment in DirectionControl.java explaining the three-step safe publication process: (1) simulation thread volatile write, (2) listener callback reads volatile value, (3) EDT reads stored field. Explained that Java Memory Model guarantees volatile write happens-before any subsequent operation.
+Decision: Accepted as written
+Why: Critical for code maintainability and auditing. Developers reading this code need to understand WHY volatile is sufficient rather than using locks. The comment clearly shows the happens-before relationship that guarantees EDT always sees the most recent value because volatile operations bypass CPU caches and force memory coherency.
 
 ## Session 7 – 2026-06-17 16:42
 Task: Task 3 (Self-healing worker threads - Core Loop)
