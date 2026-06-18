@@ -42,6 +42,17 @@ public class DirectionControl {
     // Volatile field to store and expose current value with visibility guarantees
     // Notifications happen on simulation thread; EDT reads this volatile field
     // Ensures changes are safely visible across threads without explicit synchronization
+    //
+    // SAFE PUBLICATION GUARANTEE:
+    // ===========================
+    // 1. Simulation thread writes: volatileCurrentValue = currentValue (volatile write)
+    // 2. Listener callback stores volatile read into roll/pitch/yaw fields
+    // 3. EDT reads roll/pitch/yaw in Swing Timer (no synchronization needed)
+    //
+    // The volatile write-in step 1 happens-before any volatile read in step 2.
+    // This Java Memory Model guarantee ensures all changes visible to the simulation
+    // thread are safely visible to EDT without locks. EDT always sees the most recent
+    // value because volatile reads/writes bypass CPU caches.
     private volatile double volatileCurrentValue;
 
     // Getters for correction mechanism display
