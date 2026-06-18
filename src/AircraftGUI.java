@@ -42,11 +42,12 @@ import javax.swing.Timer;
  *                             | Environment   | --------> | Aircraft State   |
  *                             | Effects       |           | Management       |
  *                             +----------------+           +------------------+
- *                                                                  |
- *                                                                  v
- *                                                         +------------------+
- *                                                         | Rendering Thread |
- *                                                         +------------------+
+ * 
+ * Observer Pattern:
+ * ================
+ * DirectionControl instances (roll, pitch, yaw) push changes to AircraftGUI listeners.
+ * This replaces polling: instead of the Swing Timer reading from DirectionControl every frame,
+ * the simulation thread notifies observers when values change.
  * 
  * Flow of Control:
  * 1. Input processing and flight controls
@@ -58,7 +59,7 @@ import javax.swing.Timer;
  * The simulation uses a Swing-based UI to render a realistic aircraft display with
  * professional flight parameters, navigation data, and system status information.
  */
-public class AircraftGUI {
+public class AircraftGUI implements DirectionControlListener {
     // Constants
     private static final int PANEL_WIDTH = 800;
     private static final int PANEL_HEIGHT = 600;
@@ -146,7 +147,8 @@ public class AircraftGUI {
 
     /**
      * Creates the GUI bound to the simulation's three orientation controls.
-     * Roll/pitch/yaw shown on screen are read from these instances each frame.
+     * Roll/pitch/yaw shown on screen are read from DirectionControl listener notifications
+     * instead of polling, using the Observer pattern for push-based updates.
      */
     public AircraftGUI(DirectionControl rollControl,
                        DirectionControl pitchControl,
@@ -154,6 +156,12 @@ public class AircraftGUI {
         this.rollControl = rollControl;
         this.pitchControl = pitchControl;
         this.yawControl = yawControl;
+        
+        // Register this GUI as a listener for DirectionControl changes
+        // Notifications happen on the simulation thread; we store values for EDT to read
+        rollControl.addListener(this);
+        pitchControl.addListener(this);
+        yawControl.addListener(this);
     }
 
     public void setResourceMonitor(ResourceMonitor monitor) {
@@ -188,7 +196,7 @@ public class AircraftGUI {
     /**
      * Notifies all registered observers of an altitude change.
      * This replaces the polling mechanism with event-driven updates.
-     *
+     * 
      * @param altitude The new altitude value
      */
     private void notifyAltitudeChanged(double altitude) {
@@ -196,6 +204,26 @@ public class AircraftGUI {
             for (AltitudeObserver observer : altitudeObservers) {
                 observer.onAltitudeChanged(altitude);
             }
+        }
+    }
+
+    /**
+     * Receives DirectionControl change notifications from the simulation thread.
+     * Implements DirectionControlListener to observe roll, pitch, yaw changes.
+     * 
+     * This is called from the simulation thread and must not call any Swing methods.
+     * It stores the values for the Swing Timer to read during rendering.
+     * 
+     * @param control The DirectionControl that changed
+     */
+    @Override
+    public void onDirectionChanged(DirectionControl control) {
+        if (control == rollControl) {
+            roll = control.getVolatileCurrentValue();
+        } else if (control == pitchControl) {
+            pitch = control.getVolatileCurrentValue();
+        } else if (control == yawControl) {
+            yaw = control.getVolatileCurrentValue();
         }
     }
 
@@ -406,18 +434,17 @@ public class AircraftGUI {
     }
     
     /**
-     * Pulls roll/pitch/yaw from the simulation's DirectionControl instances and
-     * updates GUI-specific dynamics (altitude tracking and airspeed variation).
+     * Updates GUI-specific dynamics (altitude tracking and airspeed variation).
+     * Roll/pitch/yaw are now pushed by DirectionControl listeners (Observer pattern).
      * Notifies observers when altitude changes using the Observer pattern.
      */
     private void updateAircraft() {
         long currentTime = System.currentTimeMillis();
         double timeSeconds = (currentTime - simulationStartTime) / 1000.0;
 
-        // Read orientation from the simulation's control instances.
-        roll = rollControl.getCurrentValue();
-        pitch = pitchControl.getCurrentValue();
-        yaw = yawControl.getCurrentValue();
+        // Note: roll, pitch, yaw are no longer polled here.
+        // They are pushed via onDirectionChanged() listener notifications from DirectionControl.
+        // This eliminates polling and uses event-driven updates instead.
 
         // Altitude tracking: move toward targetAltitude at up to 500 ft/min.
         double altitudeDifference = targetAltitude - currentAltitude;
