@@ -22,29 +22,35 @@ Suggestion summary: Copilot mostly just cleaned up the code I had already starte
 Decision: Accepted
 Why: Loading the file inside `main()` just makes way more sense. If the CSV is broken, I want the simulation to fail immediately on startup, rather than waiting for the thread to launch and then crashing.
 
-## Session 4 –
-Task:
+## Session 4 – 2026-06-18 
+Task: Task 2 (Replace polling with Observer pattern for altitude data)
 Tool: GitHub Copilot Chat
-Prompt (verbatim):
-Suggestion summary:
-Decision:
-Why:
+Prompt (verbatim): Can you replace polling with the Observer pattern? Right now the code moves altitude data from the simulation to the GUI through polling.
+Suggestion summary: Copilot generated an AltitudeObserver interface and suggested adding observer management methods to AircraftGUI (addAltitudeObserver, removeAltitudeObserver, notifyAltitudeChanged). It recommended updating updateAircraft() to notify observers instead of just storing the altitude value, and registering the panel as an observer in createAndShowGUI().
+Decision: Accepted as written
+Why: The refactoring eliminates unnecessary polling every frame (60 FPS) and replaces it with event-driven updates that only notify observers when altitude actually changes. This reduces CPU usage, decouples the GUI from the panel via an interface, and makes it easy to add new altitude observers in the future. The observer pattern is thread-safe with synchronized operations on the observer list.
 
-## Session 5 –
-Task:
+## Session 5 – 2026-06-18
+Task: Task 2 (Replace polling with Observer pattern for orientation data - roll, pitch, yaw)
 Tool: GitHub Copilot Chat
-Prompt (verbatim):
-Suggestion summary:
-Decision:
-Why:
+Prompt (verbatim): Define a Java interface DirectionControlListener with a single method void onDirectionChanged(DirectionControl control). Give DirectionControl two methods addListener(DirectionControlListener) and removeListener(DirectionControlListener), backed by a thread-safe collection (CopyOnWriteArrayList). Every time update() changes the current value, iterate through the listener list and invoke the callback on each instance. Store the most recent value in a volatile double field per axis, and stop calling getCurrentValue() from inside the Swing timer. Modify AircraftGUI so that in its constructor it registers listeners with all three DirectionControl instances.
+Suggestion summary: Implementation created DirectionControlListener interface, added CopyOnWriteArrayList listeners to DirectionControl, modified update() to notify listeners via volatile field, implemented DirectionControlListener in AircraftGUI with onDirectionChanged() callback, and removed polling of getCurrentValue() from updateAircraft() and Swing Timer.
+Decision: Accepted as written
+Why: This completes the transition from polling to event-driven updates for all flight orientation data. CopyOnWriteArrayList is the optimal choice (many reads/few writes). The volatile field ensures EDT visibility without synchronization. Push-based notifications fire on the simulation thread while EDT safely reads cached values, respecting Swing's threading model. Eliminates redundant polling every 33ms when values change far less frequently.
 
-## Session 6 –
-Task:
+THREAD SAFETY - SAFE PUBLICATION GUARANTEE:
+(1) Simulation thread calls update(), writes to volatile volatileCurrentValue (volatile write)
+(2) This triggers onDirectionChanged() listener on same thread, which reads the volatile value and stores in roll/pitch/yaw fields
+(3) EDT reads roll/pitch/yaw in Swing Timer with no synchronization needed
+The Java Memory Model guarantees that the volatile write-in step 1 happens-before any subsequent operation. EDT always sees the most recent value because volatile operations bypass CPU caches and force memory coherency.
+
+## Session 6 – 2026-06-18
+Task: Task 2 (Document thread-safe publication guarantee in code comments)
 Tool: GitHub Copilot Chat
-Prompt (verbatim):
-Suggestion summary:
-Decision:
-Why:
+Prompt (verbatim): Can you add a comment block (not too long) in code or in the prompts.md that explains in plain text English how the code guarantees safe publication of the value across threads?
+Suggestion summary: Added detailed code comment in DirectionControl.java explaining the three-step safe publication process: (1) simulation thread volatile write, (2) listener callback reads volatile value, (3) EDT reads stored field. Explained that Java Memory Model guarantees volatile write happens-before any subsequent operation.
+Decision: Accepted as written
+Why: Critical for code maintainability and auditing. Developers reading this code need to understand WHY volatile is sufficient rather than using locks. The comment clearly shows the happens-before relationship that guarantees EDT always sees the most recent value because volatile operations bypass CPU caches and force memory coherency.
 
 ## Session 7 – 2026-06-17 16:42
 Task: Task 3 (Self-healing worker threads - Core Loop)

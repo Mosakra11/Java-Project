@@ -93,7 +93,7 @@ import javax.swing.Timer;
  *                 | Procedures   |       |              |
  *                 +--------------+       +---------------+
  */
-public class AircraftPanel extends JPanel implements ComponentListener {
+public class AircraftPanel extends JPanel implements ComponentListener, AltitudeObserver {
     // Panel dimensions
     private int width = 800;
     private int height = 600;
@@ -816,8 +816,19 @@ public class AircraftPanel extends JPanel implements ComponentListener {
     }
     
     /**
-//      * Set the current aircraft altitude
-//      * @param altitude The altitude in feet
+     * Receives altitude change notifications from AircraftGUI (Observer pattern).
+     * This replaces the polling mechanism with event-driven updates.
+     *
+     * @param altitude The new altitude in feet
+     */
+    @Override
+    public void onAltitudeChanged(double altitude) {
+        setAltitude(altitude);
+    }
+
+    /**
+    //      * Set the current aircraft altitude
+    //      * @param altitude The altitude in feet
      */
     public void setAltitude(double altitude) {
         // Apply altitude loss if active

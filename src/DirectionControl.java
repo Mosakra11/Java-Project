@@ -7,6 +7,7 @@
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Direction control system for an aircraft axis. Manages a current value and a
@@ -31,6 +32,29 @@ public class DirectionControl {
     private int sampleCount = 0;
     private boolean trackStatistics = true;
 
+    // Listener pattern: thread-safe collection for observers
+    // CopyOnWriteArrayList is the simplest correct choice for scenarios with:
+    // - Many reads (every update())
+    // - Few writes (add/remove listeners)
+    // No synchronization overhead on iteration, which is critical on the simulation thread
+    private final CopyOnWriteArrayList<DirectionControlListener> listeners = new CopyOnWriteArrayList<>();
+
+    // Volatile field to store and expose current value with visibility guarantees
+    // Notifications happen on simulation thread; EDT reads this volatile field
+    // Ensures changes are safely visible across threads without explicit synchronization
+    //
+    // SAFE PUBLICATION GUARANTEE:
+    // ===========================
+    // 1. Simulation thread writes: volatileCurrentValue = currentValue (volatile write)
+    // 2. Listener callback stores volatile read into roll/pitch/yaw fields
+    // 3. EDT reads roll/pitch/yaw in Swing Timer (no synchronization needed)
+    //
+    // The volatile write-in step 1 happens-before any volatile read in step 2.
+    // This Java Memory Model guarantee ensures all changes visible to the simulation
+    // thread are safely visible to EDT without locks. EDT always sees the most recent
+    // value because volatile reads/writes bypass CPU caches.
+    private volatile double volatileCurrentValue;
+
     // Getters for correction mechanism display
     public String getName() { return name; }
     public double getInertia() { return inertia; }
@@ -42,6 +66,38 @@ public class DirectionControl {
     protected void setInertia(double inertia) { this.inertia = inertia; }
     protected void setDampening(double dampening) { this.dampening = dampening; }
     protected void setTolerance(double tolerance) { this.tolerance = tolerance; }
+
+    /**
+     * Registers a listener to be notified when this control's value changes.
+     * Uses CopyOnWriteArrayList for thread-safe notifications without blocking.
+     *
+     * @param listener The listener to register
+     */
+    public void addListener(DirectionControlListener listener) {
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+
+    /**
+     * Unregisters a listener from value change notifications.
+     *
+     * @param listener The listener to unregister
+     */
+    public void removeListener(DirectionControlListener listener) {
+        listeners.remove(listener);
+    }
+
+    /**
+     * Notifies all registered listeners that this control's value has changed.
+     * This method is called from the simulation thread during update().
+     * Listeners should not call any Swing methods; they should only store values.
+     */
+    private void notifyListeners() {
+        for (DirectionControlListener listener : listeners) {
+            listener.onDirectionChanged(this);
+        }
+    }
 
     public DirectionControl(String name, double min, double max, ConfigLoader config) {
         this.name = name;
@@ -57,10 +113,12 @@ public class DirectionControl {
         this.currentValue = 0;
         this.targetValue = 0;
         this.velocity = 0;
+        this.volatileCurrentValue = 0;
     }
 
     /**
      * Update the current value based on the physics model and target.
+     * Notifies all registered listeners when the value changes.
      */
     public synchronized void update() {
         double deviation = targetValue - currentValue;
@@ -94,6 +152,10 @@ public class DirectionControl {
             currentValue = max;
             velocity = 0;
         }
+
+        // Update volatile field for EDT visibility and notify listeners
+        this.volatileCurrentValue = currentValue;
+        notifyListeners();
     }
 
     public Map<String, Double> getStatistics() {
@@ -105,7 +167,22 @@ public class DirectionControl {
     }
 
     public synchronized double getCurrentValue() { return currentValue; }
-    public synchronized void setCurrentValue(double value) { this.currentValue = value; }
+
+    /**
+     * Returns the current value with volatile visibility guarantees.
+     * This is safe for EDT to read without synchronization.
+     *
+     * @return The most recent current value
+     */
+    public double getVolatileCurrentValue() {
+        return volatileCurrentValue;
+    }
+
+    public synchronized void setCurrentValue(double value) {
+        this.currentValue = value;
+        this.volatileCurrentValue = value;
+        notifyListeners();
+    }
 
     public synchronized double getTargetValue() { return targetValue; }
     public synchronized void setTargetValue(double value) {
