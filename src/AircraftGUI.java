@@ -10,6 +10,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -108,6 +109,10 @@ public class AircraftGUI {
     // the latest OS CPU / memory measurements published by the monitor thread.
     private ResourceMonitor resourceMonitor;
 
+    // Observer pattern for altitude changes - observers are notified when altitude changes
+    private final List<AltitudeObserver> altitudeObservers = new ArrayList<>();
+    private final Object observerLock = new Object();
+
     // Aircraft state variables
     private double roll = 0.0;
     private double pitch = 0.0;
@@ -153,6 +158,45 @@ public class AircraftGUI {
 
     public void setResourceMonitor(ResourceMonitor monitor) {
         this.resourceMonitor = monitor;
+    }
+
+    /**
+     * Registers an observer to be notified of altitude changes.
+     * Uses the Observer pattern to replace polling-based updates.
+     *
+     * @param observer The observer to register
+     */
+    public void addAltitudeObserver(AltitudeObserver observer) {
+        synchronized (observerLock) {
+            if (!altitudeObservers.contains(observer)) {
+                altitudeObservers.add(observer);
+            }
+        }
+    }
+
+    /**
+     * Unregisters an observer from altitude change notifications.
+     *
+     * @param observer The observer to unregister
+     */
+    public void removeAltitudeObserver(AltitudeObserver observer) {
+        synchronized (observerLock) {
+            altitudeObservers.remove(observer);
+        }
+    }
+
+    /**
+     * Notifies all registered observers of an altitude change.
+     * This replaces the polling mechanism with event-driven updates.
+     *
+     * @param altitude The new altitude value
+     */
+    private void notifyAltitudeChanged(double altitude) {
+        synchronized (observerLock) {
+            for (AltitudeObserver observer : altitudeObservers) {
+                observer.onAltitudeChanged(altitude);
+            }
+        }
     }
 
     /**
@@ -305,7 +349,7 @@ public class AircraftGUI {
                     panel.setPitch(pitch);
                     panel.setYaw(yaw);
                     panel.setFlightSpeed(flightSpeed);
-                    panel.setAltitude(currentAltitude);
+                    // Note: Altitude is no longer set here - it's pushed via Observer pattern
                     panel.setTurbulenceFactor(turbulenceFactor);
                 }
                 
@@ -364,6 +408,7 @@ public class AircraftGUI {
     /**
      * Pulls roll/pitch/yaw from the simulation's DirectionControl instances and
      * updates GUI-specific dynamics (altitude tracking and airspeed variation).
+     * Notifies observers when altitude changes using the Observer pattern.
      */
     private void updateAircraft() {
         long currentTime = System.currentTimeMillis();
@@ -379,6 +424,9 @@ public class AircraftGUI {
         double climbRate = Math.min(Math.max(altitudeDifference / 10.0, -500), 500);
         currentAltitude += climbRate / 60.0;
         currentAltitude += (random.nextDouble() - 0.5) * 5.0; // air-pocket jitter
+
+        // Notify observers of altitude change (Observer pattern instead of polling)
+        notifyAltitudeChanged(currentAltitude);
 
         // Airspeed variation around cruise.
         double baseSpeed = 250.0;
@@ -465,6 +513,9 @@ public class AircraftGUI {
         panel = new AircraftPanel();
         panel.setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
         
+        // Register the panel as an observer for altitude changes (Observer pattern)
+        addAltitudeObserver(panel);
+
         // Make sure panel can receive key events
         panel.setFocusable(true);
         panel.addKeyListener(keyListener);
