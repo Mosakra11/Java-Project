@@ -16,7 +16,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.jar.Manifest;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
     /** Writer for logging output to file */
@@ -162,15 +164,11 @@ public class Main {
             System.out.println("Running without failure injection (use --inject-failures flag to enable)");
         }
 
-        // Capture simulation start time for failure injection timing
-        long simulationBootTime = System.currentTimeMillis();
-        System.out.println("Simulation boot time: " + simulationBootTime);
-
         // Create and start threads
         Thread userInputThread = createInputThread(rollControl, pitchControl, yawControl, turbulenceEnabled, running);
         userInputThread.start();
 
-        Runnable turbulenceTask = createTurbulenceTask(rollControl, pitchControl, yawControl, turbulenceEnabled, running, injectFailures, simulationBootTime);
+        Runnable turbulenceTask = createTurbulenceTask(rollControl, pitchControl, yawControl, turbulenceEnabled, running, injectFailures);
         SupervisedRunner turbulenceSupervisor = new SupervisedRunner("turbulence", turbulenceTask, running::get);
         Thread turbulenceThread = new Thread(turbulenceSupervisor);
         turbulenceThread.start();
@@ -265,7 +263,7 @@ public class Main {
                 yawControl.update();
                 
                 // Auto-stop simulation if inject-failures test duration exceeded
-                if (injectFailures && System.currentTimeMillis() - simulationStart > autoStopTime) {
+                if (injectFailures && (System.currentTimeMillis() - simulationStart > autoStopTime)) {
                     System.out.println("Auto-stopping simulation after failure injection test...");
                     running.set(false);
                 }
@@ -360,54 +358,73 @@ public class Main {
         });
     }
     
-    /**
-     * Creates a runnable task that applies turbulence to the aircraft
-     */
-    private static Runnable createTurbulenceTask(DirectionControl roll, DirectionControl pitch, DirectionControl yaw,
-                                                 AtomicBoolean turbulenceEnabled, AtomicBoolean running,
-                                                 boolean injectFailures, long simulationBootTime) {
-        return () -> {
-            Random random = new Random();
+     /**
+      * Creates a runnable task that applies turbulence to the aircraft
+      */
+     private static Runnable createTurbulenceTask(DirectionControl roll, DirectionControl pitch, DirectionControl yaw,
+                                                  AtomicBoolean turbulenceEnabled, AtomicBoolean running,
+                                                  boolean injectFailures) {
+         // Failure flags that are set by scheduled executor at specific times
+         AtomicBoolean shouldThrowAt3s = new AtomicBoolean(false);
+         AtomicBoolean shouldThrowAt6s = new AtomicBoolean(false);
+         AtomicBoolean shouldThrowAt9s = new AtomicBoolean(false);
 
-            while (running.get()) {
-                // Only apply turbulence if enabled
-                if (turbulenceEnabled.get()) {
-                    // Create random jitter values to simulate turbulence
-                    double rollJitter = (random.nextDouble() - 0.5) * 2.0;
-                    double pitchJitter = (random.nextDouble() - 0.5) * 1.5;
-                    double yawJitter = (random.nextDouble() - 0.5) * 1.0;
+         // If injection is enabled, schedule failures at 3s, 6s, 9s
+         if (injectFailures) {
+             ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+             scheduler.schedule(() -> {
+                 System.err.println("[DEBUG] Scheduled failure trigger for 3s");
+                 shouldThrowAt3s.set(true);
+             }, 3, TimeUnit.SECONDS);
+             scheduler.schedule(() -> {
+                 System.err.println("[DEBUG] Scheduled failure trigger for 6s");
+                 shouldThrowAt6s.set(true);
+             }, 6, TimeUnit.SECONDS);
+             scheduler.schedule(() -> {
+                 System.err.println("[DEBUG] Scheduled failure trigger for 9s");
+                 shouldThrowAt9s.set(true);
+             }, 9, TimeUnit.SECONDS);
+             // Don't shut down the scheduler; let it run for the duration
+         }
 
-                    // Apply jitter
-                    roll.setCurrentValue(roll.getCurrentValue() + rollJitter);
-                    pitch.setCurrentValue(pitch.getCurrentValue() + pitchJitter);
-                    yaw.setCurrentValue(yaw.getCurrentValue() + yawJitter);
-                }
+         return () -> {
+             Random random = new Random();
 
-                // Inject failures at specific global timestamps if enabled
-                if (injectFailures) {
-                    long elapsedMs = System.currentTimeMillis() - simulationBootTime;
-                    if (elapsedMs >= 3000 && elapsedMs < 3100) {
-                        System.err.println("[DEBUG] Triggering failure at 3s mark (elapsed: " + elapsedMs + "ms)");
-                        throw new RuntimeException("Injected failure at 3 seconds");
-                    } else if (elapsedMs >= 6000 && elapsedMs < 6100) {
-                        System.err.println("[DEBUG] Triggering failure at 6s mark (elapsed: " + elapsedMs + "ms)");
-                        throw new RuntimeException("Injected failure at 6 seconds");
-                    } else if (elapsedMs >= 9000 && elapsedMs < 9100) {
-                        System.err.println("[DEBUG] Triggering failure at 9s mark (elapsed: " + elapsedMs + "ms)");
-                        throw new RuntimeException("Injected failure at 9 seconds");
-                    }
-                }
+             while (running.get()) {
+                 // Check for scheduled failures and throw if triggered
+                 if (shouldThrowAt3s.getAndSet(false)) {
+                     throw new RuntimeException("Injected failure at 3 seconds");
+                 }
+                 if (shouldThrowAt6s.getAndSet(false)) {
+                     throw new RuntimeException("Injected failure at 6 seconds");
+                 }
+                 if (shouldThrowAt9s.getAndSet(false)) {
+                     throw new RuntimeException("Injected failure at 9 seconds");
+                 }
 
-                // Sleep at the very end of the loop
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Turbulence thread interrupted", e);
-                }
-            }
-        };
-    }
+                 // Only apply turbulence if enabled
+                 if (turbulenceEnabled.get()) {
+                     // Create random jitter values to simulate turbulence
+                     double rollJitter = (random.nextDouble() - 0.5) * 2.0;
+                     double pitchJitter = (random.nextDouble() - 0.5) * 1.5;
+                     double yawJitter = (random.nextDouble() - 0.5);
+
+                     // Apply jitter
+                     roll.setCurrentValue(roll.getCurrentValue() + rollJitter);
+                     pitch.setCurrentValue(pitch.getCurrentValue() + pitchJitter);
+                     yaw.setCurrentValue(yaw.getCurrentValue() + yawJitter);
+                 }
+
+                 // Sleep at the very end of the loop
+                 try {
+                     Thread.sleep(200);
+                 } catch (InterruptedException e) {
+                     Thread.currentThread().interrupt();
+                     throw new RuntimeException("Turbulence thread interrupted", e);
+                 }
+             }
+         };
+     }
 
     /**
      * Creates a thread that automatically demonstrates various flight maneuvers
