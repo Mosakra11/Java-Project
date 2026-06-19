@@ -1,3 +1,21 @@
+Run the simulation using a custom maneuver script.
+java Main --script custom_maneuvers.csv
+
+Run the simulation using the updated event-driven architecture.
+java Main
+
+Enable failure injection to trigger turbulence thread crashes at 3s, 6s, and 9s.
+java Main --inject-failures
+
+
+
+
+
+
+
+
+
+
 # Aircraft Direction Control Simulation
 # =================================
 
