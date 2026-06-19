@@ -1,14 +1,16 @@
-Run the simulation using a custom maneuver script.
-java Main --script custom_maneuvers.csv
+Step by step instructions to run the code
 
-Run the simulation using the updated event-driven architecture.
+Compile the Source Code
+javac *.java
+
+Run the Base Simulation
 java Main
 
-Enable failure injection to trigger turbulence thread crashes at 3s, 6s, and 9s.
+Run the Scripted Maneuvers
+java Main --script default_maneuvers.csv
+
+Run the Fault Tolerance Test
 java Main --inject-failures
-
-
-
 
 
 
