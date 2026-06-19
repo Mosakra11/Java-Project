@@ -68,10 +68,8 @@ public class ManeuverScript {
 
                  // Validate 4 fields
                  if (fields.length != 4) {
-                     throw new IllegalArgumentException(
-                             "Script error on line " + lineNumber +
-                                     ": expected 4 fields but found " + fields.length
-                     );
+                    scriptErrors.add("Script error on line " + lineNumber + ": expected 4 fields but found " + fields.length);
+                    continue; 
                  }
 
                  // Collect errors per line instead of throwing immediately so we can report all script issues
@@ -89,37 +87,31 @@ public class ManeuverScript {
                      lineErrors.add("field 1 (seconds): \"" + fields[0] + "\" is not a number");
                  }
                  try {
-                     roll = Double.parseDouble(fields[1].trim());
-                 } catch (NumberFormatException e) {
-                     lineErrors.add("field 2 (roll): \"" + fields[1] + "\" is not a number");
-                 }
-                 try {
-                     pitch = Double.parseDouble(fields[2].trim());
-                 } catch (NumberFormatException e) {
-                     lineErrors.add("field 3 (pitch): \"" + fields[2] + "\" is not a number");
-                 }
-                 try {
-                     yaw = Double.parseDouble(fields[3].trim());
-                 } catch (NumberFormatException e) {
-                     lineErrors.add("field 4 (yaw): \"" + fields[3] + "\" is not a number");
-                 }
+                    roll = Double.parseDouble(fields[1].trim());
+                } catch (NumberFormatException e) {
+                    lineErrors.add("field 2 (\"roll\"): \"" + fields[1].trim() + "\" is not a number");
+                }
+                try {
+                    pitch = Double.parseDouble(fields[2].trim());
+                } catch (NumberFormatException e) {
+                    lineErrors.add("field 3 (\"pitch\"): \"" + fields[2].trim() + "\" is not a number");
+                }
+                try {
+                    yaw = Double.parseDouble(fields[3].trim());
+                } catch (NumberFormatException e) {
+                    lineErrors.add("field 4 (\"yaw\"): \"" + fields[3].trim() + "\" is not a number");
+                }
 
-                 // Range checks only if parsing succeeded
-                 if (roll != null) {
-                     if (roll < -180 || roll > 180) {
-                         lineErrors.add("roll out of range (-180 to 180)");
-                     }
-                 }
-                 if (pitch != null) {
-                     if (pitch < -90 || pitch > 90) {
-                         lineErrors.add("pitch out of range (-90 to 90)");
-                     }
-                 }
-                 if (yaw != null) {
-                     if (yaw < -180 || yaw > 180) {
-                         lineErrors.add("yaw out of range (-180 to 180)");
-                     }
-                 }
+                // Range checks only if parsing succeeded
+                if (roll != null && (roll < -180 || roll > 180)) {
+                    lineErrors.add("roll value " + roll + " is out of range (±180°)");
+                }
+                if (pitch != null && (pitch < -90 || pitch > 90)) {
+                    lineErrors.add("pitch value " + pitch + " is out of range (±90°)");
+                }
+                if (yaw != null && (yaw < -180 || yaw > 180)) {
+                    lineErrors.add("yaw value " + yaw + " is out of range (±180°)");
+                }
 
                  // If there were any errors for this line, collect them into a single message and continue parsing
                  if (!lineErrors.isEmpty()) {
